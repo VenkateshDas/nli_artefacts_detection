@@ -34,3 +34,14 @@ But the number of tokens in the vocabulary is not similar to the one mentioned i
 ---
 
 Please refer the notebook for further calculations.
+
+---
+
+### References
+
+Relevant sections from the paper : 
+
+1.   Section 2 - Competency Problems
+2.   Section 3.2 Hypothesis Test
+3.   Section 4.1 Data Analysis
+4.   Section 4.2 Model Analysis
