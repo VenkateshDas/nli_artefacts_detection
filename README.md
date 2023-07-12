@@ -39,7 +39,7 @@ Please refer the notebook for further calculations.
 
 ### References
 
-Relevant sections from the paper : 
+Relevant sections from the paper : "Competency Problems: On Finding and Removing Artifacts in Language Data" 
 
 1.   Section 2 - Competency Problems
 2.   Section 3.2 Hypothesis Test
