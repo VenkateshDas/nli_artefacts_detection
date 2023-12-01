@@ -26,8 +26,6 @@ Reproduced Artefacts Graph from the paper
 
 ---
 
-
-
 Note : The artefacts detection method was implemented based on the information provided on the paper.
 But the number of tokens in the vocabulary is not similar to the one mentioned in the paper. This might be due to the different preprocessing applied. I tried to remove the punctuations and split the sentence on whitespaces.
 
