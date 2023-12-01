@@ -1,45 +1,17 @@
-# SNLI Artefacts detection
+# Detection, Evaluation and Mitigation of Language Artefacts in the Competition On Legal Information Extraction and Entailment Dataset
 
----
+## This REPO is still WIP. The scripts are not yet finalized.
 
-This notebook presents an implementation of an analysis method for detecting and understanding artefacts in NLP datasets, specifically the Stanford Natural Language Inference (SNLI) dataset. This analysis is based on the research paper titled **"Competency Problems: On Finding and Removing Artifacts in Language Data"**.
+This repository consists of the codebase for the thesis work on detecting, evaluating and mitigating the language/dataset artefacts in the legal information entailment dataset.
 
-In NLP tasks, datasets often contain subtle biases or artefacts that models may exploit to make predictions. These biases aren't always evident upon cursory inspection and may lead to overestimated performance metrics as models rely on them rather than learning the intended linguistic phenomena.
+The codebase is categorized into separate folders containing Python notebooks for conducting the experiments.
 
-The research paper this notebook refers to proposes a method for detecting these dataset artefacts using statistical techniques. **The approach is grounded on the calculation of Z-statistics for each token in the dataset, considering each label. A token with a Z-statistic that significantly deviates from what we would expect under a null hypothesis is considered a potential artefact.**
+data —> This folder is a placeholder to place the datasets needed for analysis
 
-***This notebook covers the process of loading and preprocessing the dataset, calculating token statistics, and using these statistics to identify potential artefacts.*** It also provides a visualization of these artefacts, offering insights into how they distribute across different labels in the dataset.
+src/data scripts —> This folder contains scripts needed for data analysis and data preprocessing.
 
+src/detection —> This folder contains the scripts needed for artefaction detection in the dataset.
 
----
+src/evaluation —> This folder contains the scripts needed for evaluating the BERT-based models for robustness.
 
----
-Artefacts Graph from the Paper</br>
-![Artefacts Graph from the Paper](https://drive.google.com/uc?export=view&id=19MS7GKzXYBkjIQDlyDQKWIET0XFjSGmX)
-
-Reproduced Artefacts Graph from the paper
-![Reproduced artefacts from the paper](https://drive.google.com/uc?export=view&id=12gg3hJVXboRYRLhjDGwvgmT2UcTU4stU)
-
----
-
-
-
----
-
-Note : The artefacts detection method was implemented based on the information provided on the paper.
-But the number of tokens in the vocabulary is not similar to the one mentioned in the paper. This might be due to the different preprocessing applied. I tried to remove the punctuations and split the sentence on whitespaces.
-
----
-
-Please refer the notebook for further calculations.
-
----
-
-### References
-
-Relevant sections from the paper : "Competency Problems: On Finding and Removing Artifacts in Language Data" 
-
-1.   Section 2 - Competency Problems
-2.   Section 3.2 Hypothesis Test
-3.   Section 4.1 Data Analysis
-4.   Section 4.2 Model Analysis
+src/mitigation —> This folder contains the necessary scripts for data augmentation to mitigate the contradiction word and word overlap artefacts.
