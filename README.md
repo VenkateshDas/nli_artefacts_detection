@@ -10,7 +10,7 @@ data —> This folder is a placeholder to place the datasets needed for analysis
 
 src/data scripts —> This folder contains scripts needed for data analysis and data preprocessing.
 
-src/detection —> This folder contains the scripts needed for artefaction detection in the dataset.
+src/detection —> This folder contains the scripts needed for artefact detection in the dataset.
 
 src/evaluation —> This folder contains the scripts needed for evaluating the BERT-based models for robustness.
 
