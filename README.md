@@ -84,6 +84,264 @@ This project implements a three-phase methodology:
 
 ---
 
+## Experiment Workflow
+
+### Complete Pipeline Flowchart
+
+This diagram shows the entire experimental pipeline from raw data to final results:
+
+```
+                    📁 Raw COLIEE Data
+                           │
+                           ▼
+        ┌──────────────────────────────────────┐
+        │   STEP 1: Data Preprocessing         │
+        │   (data_preprocess.ipynb)            │
+        │                                      │
+        │   • Tokenize text                    │
+        │   • Calculate word overlap           │
+        │   • Extract negation words           │
+        │   • Detect subsequences              │
+        └──────────────┬───────────────────────┘
+                       │
+                       ▼
+              📊 Processed CSV Files
+              (with features added)
+                       │
+           ┌───────────┴───────────┐
+           ▼                       ▼
+    ┌─────────────┐       ┌─────────────────┐
+    │   STEP 2A:  │       │    STEP 2B:     │
+    │  Detection  │       │    Training     │
+    │             │       │                 │
+    │  Analyze    │       │  Train BERT     │
+    │  artefacts  │       │  models         │
+    └──────┬──────┘       └────────┬────────┘
+           │                       │
+           ▼                       │
+    📈 Statistics &                │
+    Adversarial Set                │
+           │                       │
+           └───────────┬───────────┘
+                       ▼
+            ┌──────────────────────┐
+            │   STEP 3: Evaluate   │
+            │                      │
+            │  • Normal test set   │
+            │  • Adversarial test  │
+            │  • Robustness check  │
+            └──────────┬───────────┘
+                       │
+            ┌──────────┴──────────┐
+            │                     │
+            ▼                     ▼
+     ✅ Good Results      ❌ Poor Results
+     (Robust model)      (Artefact reliance)
+                                  │
+                                  ▼
+                    ┌─────────────────────────┐
+                    │  STEP 4: Augmentation   │
+                    │                         │
+                    │  Generate balanced data │
+                    └────────────┬────────────┘
+                                 │
+                                 ▼
+                          🔄 Retrain Model
+                                 │
+                                 ▼
+                        ✅ Improved Results
+```
+
+### How Artefacts Work (Visual Example)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      WORD OVERLAP ARTEFACT                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Premise:  "The contract becomes valid upon signature by both      │
+│             parties and must be executed within 30 days."          │
+│                                                                     │
+│  Hypothesis: "The contract becomes valid upon signature."          │
+│                                                                     │
+│  Label: YES (Entailment) ✓                                         │
+│                                                                     │
+│  🔍 Analysis:                                                       │
+│  ┌──────────────────────────────────────────────────────┐          │
+│  │ Overlap: 7 words match exactly                       │          │
+│  │ Overlap ratio: 7/8 = 87.5%                          │          │
+│  │                                                      │          │
+│  │ ⚠️ Problem: Model learns                             │          │
+│  │    "High overlap = YES" instead of                   │          │
+│  │    understanding the actual meaning                  │          │
+│  └──────────────────────────────────────────────────────┘          │
+│                                                                     │
+│  💡 Adversarial Example (to test robustness):                      │
+│  Hypothesis: "The contract expires after signature."               │
+│  Overlap: Still high, but meaning contradicts!                     │
+│  Expected: NO, Artefact-based model: YES (wrong!) ❌               │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                   NEGATION WORD ARTEFACT                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Premise:  "A guarantor has the responsibility to pay debts."      │
+│                                                                     │
+│  Hypothesis: "A guarantor has no responsibility to pay."           │
+│                                                                     │
+│  Label: NO (Contradiction) ✓                                       │
+│                                                                     │
+│  🔍 Analysis:                                                       │
+│  ┌──────────────────────────────────────────────────────┐          │
+│  │ Negation words found: ["no"]                         │          │
+│  │                                                      │          │
+│  │ ⚠️ Problem: Model learns                             │          │
+│  │    "Has negation = NO" instead of                    │          │
+│  │    understanding context                             │          │
+│  └──────────────────────────────────────────────────────┘          │
+│                                                                     │
+│  💡 Adversarial Example (to test robustness):                      │
+│  Hypothesis: "No other party is liable for the debt."              │
+│  Has "no", but doesn't contradict - still entails!                 │
+│  Expected: YES, Artefact-based model: NO (wrong!) ❌               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Training & Evaluation Pipeline
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    TRAINING EXPERIMENT                         │
+└────────────────────────────────────────────────────────────────┘
+
+    📂 Training Data                    ⚙️ Configuration
+    ├─ coliee_train_2020.csv          ├─ Model: BERT/RoBERTa/etc.
+    ├─ 90% train / 10% validation     ├─ Features: ALL/NONE/specific
+    └─ Features extracted              └─ Mode: full-context/hyp-only
+              │                                    │
+              └────────────┬───────────────────────┘
+                           │
+                           ▼
+              ┌────────────────────────┐
+              │   🤖 Model Training    │
+              │                        │
+              │  • 15 epochs           │
+              │  • Batch size: 8       │
+              │  • Learning rate: 5e-6 │
+              │  • Early stopping      │
+              └───────────┬────────────┘
+                          │
+                          ▼
+              ┌────────────────────────┐
+              │  💾 Save Best Model    │
+              └───────────┬────────────┘
+                          │
+           ┌──────────────┴──────────────┐
+           │                             │
+           ▼                             ▼
+    ┌─────────────┐              ┌──────────────┐
+    │  Test on    │              │   Test on    │
+    │  Normal     │              │  Adversarial │
+    │  Test Set   │              │   Test Set   │
+    └──────┬──────┘              └──────┬───────┘
+           │                             │
+           ▼                             ▼
+    Accuracy: 85%                 Accuracy: 60%
+    ✅ Good!                       ⚠️ Artefact reliance!
+           │                             │
+           └──────────────┬──────────────┘
+                          ▼
+              ┌────────────────────────┐
+              │   📊 Results Analysis  │
+              │                        │
+              │  • Overall accuracy    │
+              │  • Per-artefact acc    │
+              │  • For/Against splits  │
+              └────────────────────────┘
+```
+
+### Data Augmentation Strategy
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│              ARTEFACT MITIGATION VIA AUGMENTATION                │
+└──────────────────────────────────────────────────────────────────┘
+
+    Original Dataset (Biased)              Augmented Dataset (Balanced)
+    ────────────────────────              ──────────────────────────
+
+    High Overlap → YES (80%)              High Overlap → YES (50%)
+                                          High Overlap → NO  (50%)
+                   ↓                                 ↓
+    Model learns shortcut                Model must understand meaning!
+
+
+    AUGMENTATION PROCESS:
+    ─────────────────────
+
+    Step 1: Identify Bias              Step 2: Generate Counter-examples
+    ┌──────────────────┐              ┌────────────────────────────┐
+    │ Original:        │              │ Augmented:                 │
+    │ ───────────      │              │ ─────────────              │
+    │ P: "Article 123" │   ───────▶   │ P: "Article 123 ..."       │
+    │ H: "Article 123" │   Generate   │ H: "Article 456 ..."       │
+    │ Label: YES       │              │ Label: NO                  │
+    │ Overlap: 100%    │              │ Overlap: 100% BUT NO!      │
+    └──────────────────┘              └────────────────────────────┘
+
+    Step 3: Combine                    Step 4: Retrain
+    ┌──────────────────┐              ┌────────────────────────────┐
+    │ Original (1000)  │              │ Model now learns:          │
+    │      +           │   ────▶      │                            │
+    │ Augmented (500)  │   Train      │ "I can't just rely on      │
+    │      =           │              │  overlap, I need to read!" │
+    │ Total (1500)     │              │                            │
+    └──────────────────┘              └────────────────────────────┘
+```
+
+### Model Comparison Experiment
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│           COMPARING DIFFERENT EXPERIMENTAL CONDITIONS               │
+└─────────────────────────────────────────────────────────────────────┘
+
+Experiment 1: Baseline                Experiment 2: With Features
+──────────────────────                ───────────────────────────
+Input: Premise + Hypothesis           Input: Premise + Hypothesis + Features
+Features: None                        Features: overlap, negations, length
+
+     [BERT Model]                          [BERT Model]
+          │                                      │
+          ▼                                      ▼
+   Normal Test: 85%                       Normal Test: 87%
+   Adv Test: 58% ⚠️                       Adv Test: 61% ⚠️
+
+
+Experiment 3: Hypothesis Only         Experiment 4: Augmented Data
+──────────────────────────            ────────────────────────────
+Input: Hypothesis only                Input: Premise + Hypothesis
+Purpose: Check hyp-only bias          Data: Original + Augmented
+
+     [BERT Model]                          [BERT Model]
+          │                                      │
+          ▼                                      ▼
+   Normal Test: 72%                       Normal Test: 84%
+   Adv Test: 45% ⚠️⚠️                     Adv Test: 78% ✅✅
+   (High hypothesis bias!)                (Much more robust!)
+
+
+RESULT INTERPRETATION:
+━━━━━━━━━━━━━━━━━━━━━━
+Normal Test = How well model works on standard data
+Adv Test = How well model resists artefact exploitation
+Large gap = Model is cheating with shortcuts! ⚠️
+Small gap = Model truly understands! ✅
+```
+
+---
+
 ## Features
 
 ✅ **Comprehensive Artefact Detection**
@@ -211,6 +469,43 @@ nli_artefacts_detection/
 
 ## Usage
 
+### Quick Reference: What to Run
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     NOTEBOOK EXECUTION GUIDE                    │
+└─────────────────────────────────────────────────────────────────┘
+
+  Goal: Prepare Data
+  ├─ Run: src/data scripts/data_preprocess.ipynb
+  └─ Output: CSV files with features
+
+  Goal: Understand Dataset Biases
+  ├─ Run: src/detection/coliee_artefacts_detection.ipynb
+  └─ Output: Statistics + adversarial test set
+
+  Goal: Train & Test Models
+  ├─ Run: src/evaluation/Auto_X01_BERT_coliee_models_w_features.ipynb
+  ├─ Configure: Model, features, data type
+  └─ Output: Trained models + accuracy results
+
+  Goal: Improve Model Robustness
+  ├─ Step 1: src/mitigation/create_data_augmentation_instances.ipynb
+  ├─ Step 2: src/mitigation/validate_augmented_instances.ipynb
+  ├─ Step 3: src/mitigation/combine_augmented_coliee_datasets.ipynb
+  └─ Then: Retrain with augmented data
+
+  Goal: Analyze Results
+  ├─ Run: src/evaluation/results/model_results_analysis.ipynb
+  ├─ Run: src/evaluation/results/Results_Visualization.ipynb
+  └─ Output: Plots and comparison tables
+
+  Goal: Interpret Model Decisions
+  └─ Run: src/evaluation/model interpretability/BERT_Model_Interpretability.ipynb
+```
+
+---
+
 ### 1. Data Preprocessing
 
 First, preprocess the raw COLIEE data to extract features and create analysis-ready CSV files.
@@ -267,6 +562,57 @@ years = ["2018", "2019", "2020", "2021", "2022"]
 feature_name = ["NONE", "ALL", "SENTENCE_LENGTH", "WORD_OVERLAP",
                 "HAS_CONTRADICTION_WORDS", "SUBSEQUENCE_HEURISTICS"]
 chosen_model = models['BERT_BASE']  # See Supported Models section
+```
+
+**Which configuration should I use?** Follow this decision tree:
+
+```
+                    What do you want to test?
+                              │
+         ┌────────────────────┼────────────────────┐
+         ▼                    ▼                    ▼
+    Baseline model      Check if model      Test robustness
+    performance         uses shortcuts      after mitigation
+         │                    │                    │
+         ▼                    ▼                    ▼
+    DATA_TYPE =         MODEL_TYPE =          DATA_TYPE =
+    "Normal"            "hyp-only"            "Aug"
+    MODEL_TYPE =        (tests if model       MODEL_TYPE =
+    "full-context"      can work without      "full-context"
+    feature_name =      premise - bad         feature_name =
+    ["NONE"]            sign!)                ["NONE"]
+
+         ┌────────────────────┼────────────────────┐
+         ▼                    ▼                    ▼
+    Compare models      Test feature        Legal domain
+    (BERT vs RoBERTa)   importance          specific
+         │                    │                    │
+         ▼                    ▼                    ▼
+    chosen_model =      feature_name =        chosen_model =
+    [loop through       ["ALL"] vs            models['LEGAL_BERT']
+    all models]         ["NONE"] vs
+                        individual features
+
+
+    💡 RECOMMENDED EXPERIMENT SEQUENCE:
+    ──────────────────────────────────
+    1. Baseline: Normal data, no features, full-context
+       → See how model performs naturally
+
+    2. Hypothesis-only: Normal data, hyp-only mode
+       → Check if hypothesis alone gives high accuracy (BAD!)
+
+    3. Feature ablation: Normal data, test each feature
+       → Understand which artefacts model relies on
+
+    4. Adversarial test: Use adversarial test set
+       → Quantify how much model cheats
+
+    5. Augmented training: Aug data, no features
+       → Train on balanced data
+
+    6. Compare results: Normal vs Aug performance
+       → Measure improvement in robustness
 ```
 
 **The notebook will:**
@@ -374,6 +720,107 @@ Generated in `src/evaluation/results/`:
 
 ### Weights & Biases
 If enabled, view interactive dashboards at: https://wandb.ai
+
+---
+
+### Understanding Your Results
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   RESULT INTERPRETATION GUIDE                   │
+└─────────────────────────────────────────────────────────────────┘
+
+EXAMPLE OUTPUT:
+──────────────
+
+Normal Test Accuracy: 85%
+Adversarial Test Accuracy: 60%
+  ├─ Against (contradicting artefact): 45%
+  └─ For (exploiting artefact): 75%
+
+Artefact-specific accuracy:
+  ├─ Word Overlap: 55%
+  └─ Contradiction Words: 65%
+
+
+WHAT DOES THIS MEAN?
+─────────────────────
+
+✅ GOOD SIGNS:
+━━━━━━━━━━━━━
+1. Small gap between Normal and Adversarial accuracy
+   Example: Normal 85%, Adv 80% → Only 5% drop ✓
+
+2. Similar accuracy for "Against" and "For" examples
+   Example: Against 78%, For 82% → Balanced ✓
+
+3. High accuracy on all artefact types
+   Example: All artefacts > 75% → Robust ✓
+
+
+⚠️ WARNING SIGNS:
+━━━━━━━━━━━━━━━
+1. Large gap between Normal and Adversarial accuracy
+   Example: Normal 85%, Adv 55% → 30% drop! Model relies on artefacts
+
+2. Big difference between "Against" and "For"
+   Example: Against 45%, For 75% → 30% gap! Model exploits shortcuts
+
+3. Low accuracy on specific artefact type
+   Example: Word Overlap 40% → Model cheats using overlap
+
+
+TYPICAL RESULTS BY MODEL TYPE:
+───────────────────────────────
+
+┌─────────────────────┬──────────┬──────────┬──────────────┐
+│ Model Configuration │ Normal   │ Adv      │ Robustness   │
+├─────────────────────┼──────────┼──────────┼──────────────┤
+│ Baseline (Normal)   │   85%    │   58%    │ ⚠️ Poor      │
+│ With Features       │   87%    │   62%    │ ⚠️ Slight    │
+│ Hyp-only            │   72%    │   45%    │ ⚠️⚠️ Very Bad │
+│ Augmented Data      │   84%    │   78%    │ ✅ Good!     │
+│ Legal-BERT + Aug    │   88%    │   82%    │ ✅✅ Excellent│
+└─────────────────────┴──────────┴──────────┴──────────────┘
+
+
+HOW TO IMPROVE POOR RESULTS:
+─────────────────────────────
+
+Problem: Large accuracy drop on adversarial test
+Solution: ① Use data augmentation
+          ② Train on multiple years combined
+          ③ Try domain-specific model (Legal-BERT)
+
+Problem: Hypothesis-only achieves high accuracy
+Solution: ① Clear hypothesis bias in dataset
+          ② Must use augmentation
+          ③ Consider creating more diverse data
+
+Problem: Low accuracy on specific artefact
+Solution: ① Generate more counter-examples for that artefact
+          ② Analyze what patterns model learns
+          ③ Use model interpretability notebook
+
+
+READING THE CSV PREDICTIONS:
+─────────────────────────────
+
+{run_name}-adversarial_instance_predictions.csv contains:
+
+id, label, premise, hypothesis, Artefact Type, Adv Type, predictions
+│    │      │        │           │              │          │
+│    │      │        │           │              │          └─ Model's prediction
+│    │      │        │           │              └─ For/Against
+│    │      │        │           └─ Which artefact is tested
+│    │      │        └─ Hypothesis text
+│    │      └─ Premise text
+│    └─ Ground truth label (0=No, 1=Yes)
+└─ Instance ID
+
+Look for rows where: label != predictions
+→ These are errors! Analyze them to understand model weaknesses.
+```
 
 ---
 
